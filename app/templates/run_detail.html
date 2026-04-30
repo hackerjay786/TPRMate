@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<section class="panel">
+  <h2>Run {{ run.id }}</h2>
+
+  <div class="muted">
+    Vendor: {{ run.vendor.name }} • Status: {{ run.status }}
+  </div>
+
+  <div class="counts muted">
+    Findings:
+    L {{ counts.low }} •
+    M {{ counts.medium }} •
+    H {{ counts.high }} •
+    C {{ counts.critical }}
+  </div>
+
+  <h3>Findings</h3>
+
+  <ul class="findings">
+    {% for f in findings %}
+      <li class="finding {{ f.severity }}">
+        [{{ (f.severity or 'low') | upper }}]
+        <strong>{{ f.category }}</strong> — {{ f.description }}
+      </li>
+    {% else %}
+      <li>No findings.</li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% endblock %}

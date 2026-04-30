@@ -1,0 +1,28 @@
+{% extends 'base.html' %}{% block content %}
+<section class="panel">
+  <h2>Vendors</h2>
+  <form method="POST" class="controls">
+    {{ form.hidden_tag() }}
+    <input type="text" name="name" placeholder="Vendor name" required>
+    <input type="text" name="domain" placeholder="example.com (optional)">
+    <label class="muted"><input type="checkbox" name="consent"> Active-scan consent</label>
+    <button class="btn">Add Vendor</button>
+  </form>
+  <div class="cards">
+    {% for v in vendors %}
+    <article class="vendor-card">
+      <div class="vendor-top">
+        <div><h3>{{ v.name }}</h3><div class="muted">{{ v.domain or (v.name|lower ~ '.example.com') }}</div></div>
+        <span class="consent {{ 'on' if v.consent else '' }}">{{ 'Consent' if v.consent else 'No consent' }}</span>
+      </div>
+      <div class="card-actions">
+        <a class="btn secondary" href="{{ url_for('main.vendor_detail', vendor_id=v.id) }}">Open</a>
+        <form method="POST" action="{{ url_for('main.start_run', vendor_id=v.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Run</button></form>
+      </div>
+    </article>
+    {% else %}
+      <p>No vendors yet. Add one above.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,291 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>{{ vendor.name }}</h2>
+    <div class="muted">
+      {{ vendor.domain or (vendor.name | lower ~ '.example.com') }}
+    </div>
+  </div>
+
+  <div class="controls">
+    <form method="POST" action="{{ url_for('main.start_run', vendor_id=vendor.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn">Start / Restart Scan</button>
+    </form>
+
+    <a class="btn secondary" href="{{ url_for('main.dashboard') }}">Back</a>
+  </div>
+
+  <div class="counts muted" id="liveCounts">
+  Vendor Findings:
+  L {{ counts.low }} •
+  M {{ counts.medium }} •
+  H {{ counts.high }} •
+  C {{ counts.critical }}
+</div>
+
+  {% if run %}
+    <div class="grid-2">
+      <div class="card">
+        <h4>Passive</h4>
+        <div class="progress">
+          <div
+            id="pbar"
+            class="progress-fill"
+            
+          ></div>
+        </div>
+        <div class="muted" id="pstat">
+          {{ run.passive_status }} • {{ run.passive_pct or 0 }}%
+        </div>
+        <pre class="log" id="plog">{{ run.passive_log }}</pre>
+      </div>
+
+      <div class="card">
+        <h4>Active</h4>
+        <div class="progress">
+          <div
+            id="abar"
+            class="progress-fill"
+            
+          ></div>
+        </div>
+        <div class="muted" id="astat">
+          {{ run.active_status }} • {{ run.active_pct or 0 }}%
+        </div>
+        <pre class="log" id="alog">{{ run.active_log }}</pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Findings for {{ vendor.name }}</h3>
+
+      <table id="liveFindingsTable">
+        <thead>
+          <tr>
+            <th>Severity</th>
+            <th>Category</th>
+            <th>Risk</th>
+            <th>Evidence</th>
+            <th>Remediation</th>
+          </tr>
+        </thead>
+
+        <tbody id="liveFindings">
+          {% if run and run.findings %}
+            {% for f in run.findings %}
+              {% set parts = f.description.split(' | ') %}
+              <tr class="finding {{ f.severity }}">
+                <td>{{ (f.severity or 'low') | upper }}</td>
+                <td>{{ f.category }}</td>
+                <td>{{ parts[0].replace('Risk: ', '') if parts|length > 0 else '' }}</td>
+                <td>{{ parts[1].replace('Evidence: ', '') if parts|length > 1 else '' }}</td>
+                <td>{{ parts[2].replace('Remediation: ', '') if parts|length > 2 else '' }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="5" class="muted">No findings yet.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Runs for {{ vendor.name }}</h3>
+
+      <table>
+        <tr>
+          <th>Time (UTC)</th>
+          <th>Status</th>
+          <th>P50</th>
+          <th>Findings</th>
+          <th>Link</th>
+        </tr>
+
+        {% for r in vendor_runs %}
+          <tr>
+            <td>{{ r.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ r.status }}</td>
+            <td>${{ '%.0f' | format(r.p50 or 0) }}</td>
+            <td>{{ r.findings | length }}</td>
+            <td>
+              <a href="{{ url_for('main.run_detail', run_id=r.id) }}">view</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </table>
+    </div>
+    </section>
+    <div class="card fair">
+      <h4>FAIR Summary</h4>
+
+      <div id="fair">
+        {{ 'P10: %.0f • P50: %.0f • P90: %.0f' | format(run.p10 or 0, run.p50 or 0, run.p90 or 0) if run.p50 else 'Waiting…' }}
+      </div>
+
+      <svg
+        id="fairChart"
+        width="480"
+        height="160"
+        viewBox="0 0 480 160"
+        class="svgchart"
+        aria-label="FAIR chart"
+      >
+        <rect x="0" y="0" width="480" height="160" rx="10" class="svg-bg"></rect>
+        <g id="bars"></g>
+        <g id="axis"></g>
+      </svg>
+
+      {% if run.status == 'completed' %}
+        <p>
+          <a class="btn" href="{{ url_for('main.download_report', run_id=run.id) }}">
+            Download Report
+          </a>
+        </p>
+      {% endif %}
+    </div>
+    <script>
+      const runId = {{ run.id }};
+      const endpoint = '{{ url_for("main.api_run_status", run_id=0) }}'.replace('0', runId);
+
+      function renderChart(p10, p50, p90) {
+        const svg = document.getElementById('fairChart');
+        const bars = svg.querySelector('#bars');
+        const axis = svg.querySelector('#axis');
+
+        bars.innerHTML = '';
+        axis.innerHTML = '';
+
+        const W = 480;
+        const H = 160;
+        const PAD_TOP = 22;
+        const PAD_BOTTOM = 24;
+        const INNER_H = H - PAD_TOP - PAD_BOTTOM;
+        const rawMax = Math.max(1, p10 || 0, p50 || 0, p90 || 0);
+        const scale = value => INNER_H * ((value || 0) / (rawMax * 1.15));
+
+        const fmt = value => {
+          if (value >= 1e9) return '$' + (value / 1e9).toFixed(2) + 'B';
+          if (value >= 1e6) return '$' + (value / 1e6).toFixed(1) + 'M';
+          if (value >= 1e3) return '$' + Math.round(value / 1e3) + 'k';
+
+          return '$' + Math.round(value || 0);
+        };
+
+        const base = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        base.setAttribute('x1', 24);
+        base.setAttribute('x2', W - 24);
+        base.setAttribute('y1', H - PAD_BOTTOM + 0.5);
+        base.setAttribute('y2', H - PAD_BOTTOM + 0.5);
+        base.setAttribute('stroke', 'rgba(255,255,255,0.08)');
+        axis.appendChild(base);
+
+        [
+          ['P10', p10],
+          ['P50', p50],
+          ['P90', p90],
+        ].forEach(([label, value], index) => {
+          const barW = 90;
+          const x = 40 + index * 140;
+          const h = Math.max(2, Math.min(INNER_H, scale(value)));
+          const y = PAD_TOP + (INNER_H - h);
+
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.setAttribute('x', x);
+          rect.setAttribute('y', y);
+          rect.setAttribute('width', barW);
+          rect.setAttribute('height', h);
+          rect.setAttribute('class', 'bar');
+          bars.appendChild(rect);
+
+          const tick = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          tick.setAttribute('x', x + barW / 2);
+          tick.setAttribute('y', H - 6);
+          tick.setAttribute('text-anchor', 'middle');
+          tick.setAttribute('class', 'tick');
+          tick.textContent = label;
+          axis.appendChild(tick);
+
+          const val = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          val.setAttribute('x', x + barW / 2);
+          val.setAttribute('y', Math.max(PAD_TOP + 12, y - 6));
+          val.setAttribute('text-anchor', 'middle');
+          val.setAttribute('class', 'val');
+          val.textContent = fmt(value);
+          axis.appendChild(val);
+        });
+      }
+
+      function updateUI(response) {
+        document.getElementById('pbar').style.width = (response.passive.pct || 0) + '%';
+        document.getElementById('pstat').textContent =
+          (response.passive.status || '') + ' • ' + (response.passive.pct || 0) + '%';
+        document.getElementById('plog').textContent = response.passive.tail || '';
+
+        document.getElementById('abar').style.width = (response.active.pct || 0) + '%';
+        document.getElementById('astat').textContent =
+          (response.active.status || '') + ' • ' + (response.active.pct || 0) + '%';
+        document.getElementById('alog').textContent = response.active.tail || '';
+        const findingsEl = document.getElementById('liveFindings');
+
+        if (findingsEl && response.findings) {
+          if (response.findings.length === 0) {
+            findingsEl.innerHTML = `
+              <tr>
+                <td colspan="5" class="muted">No findings yet.</td>
+              </tr>
+            `;
+          } else {
+            findingsEl.innerHTML = response.findings.map(f => {
+              const parts = (f.description || '').split(' | ');
+
+              const risk = parts[0]?.replace('Risk: ', '') || '';
+              const evidence = parts[1]?.replace('Evidence: ', '') || '';
+              const remediation = parts[2]?.replace('Remediation: ', '') || '';
+
+              return `
+                <tr class="finding ${f.severity || 'low'}">
+                  <td>${(f.severity || 'low').toUpperCase()}</td>
+                  <td>${f.category || ''}</td>
+                  <td>${risk}</td>
+                  <td>${evidence}</td>
+                  <td>${remediation}</td>
+                </tr>
+              `;
+            }).join('');
+          }
+        }
+
+        if (response.fair && response.fair.p50) {
+          document.getElementById('fair').textContent =
+            `P10: ${Math.round(response.fair.p10)} • ` +
+            `P50: ${Math.round(response.fair.p50)} • ` +
+            `P90: ${Math.round(response.fair.p90)}`;
+
+          renderChart(response.fair.p10, response.fair.p50, response.fair.p90);
+        }
+      }
+
+      const timer = setInterval(async () => {
+        try {
+          const response = await fetch(endpoint).then(result => result.json());
+
+          updateUI(response);
+
+          if (response.status === 'completed') {
+            clearInterval(timer);
+          }
+        } catch (error) {
+          console.error('poll', error);
+        }
+      }, 1200);
+    </script>
+  {% else %}
+    <p>No runs yet. Start a scan.</p>
+  {% endif %}
+
+{% endblock %}

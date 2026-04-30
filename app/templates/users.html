@@ -1,0 +1,35 @@
+{% extends 'base.html' %}{% block content %}
+<section class="panel">
+  <h2>User Management</h2>
+
+  <form method="POST" class="controls">
+    {{ form.hidden_tag() }}
+
+    <input type="email" name="email" placeholder="user@example.com" required>
+    <input type="password" name="password" placeholder="Temporary password" required>
+    <input type="text" name="role" placeholder="Admin or Viewer" value="Viewer" required>
+
+    <button class="btn">Add User</button>
+  </form>
+
+  <table>
+    <tr>
+      <th>Email</th>
+      <th>Role</th>
+      <th>Created</th>
+    </tr>
+
+    {% for u in users %}
+      <tr>
+        <td>{{ u.email }}</td>
+        <td>{{ u.role }}</td>
+        <td>{{ u.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      </tr>
+    {% else %}
+      <tr>
+        <td colspan="3">No users yet.</td>
+      </tr>
+    {% endfor %}
+  </table>
+</section>
+{% endblock %}

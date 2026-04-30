@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<h2>Vendor Risk Dashboard</h2>
+<section class="panel">
+  <h3>Add New Vendor</h3>
+
+  <form method="POST" class="controls">
+    {{ form.hidden_tag() }}
+
+    <input type="text" name="name" placeholder="Vendor name" required>
+    <input type="text" name="domain" placeholder="example.com (optional)">
+    
+    <label class="muted">
+      <input type="checkbox" name="consent"> Active-scan consent
+    </label>
+
+    <button class="btn">Add Vendor</button>
+  </form>
+</section>
+
+<!--section class="kpis">
+  <div class="kpi">
+    <div class="kpi-title">Total Runs</div>
+    <div class="kpi-val">{{ total_runs }}</div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-title">Completed</div>
+    <div class="kpi-val">{{ completed }}</div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-title">Avg P50</div>
+    <div class="kpi-val">${{ '%.0f' | format(avg_p50) }}</div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-title">Total Findings Across all Vendors</div>
+    <div class="kpi-val">
+      L {{ sev_counts.low }} •
+      M {{ sev_counts.medium }} •
+      H {{ sev_counts.high }} •
+      C {{ sev_counts.critical }}
+    </div>
+  </div>
+</section-->
+
+<section class="cards">
+  {% for v in vendors %}
+    {% set r = latest.get(v.id) %}
+    {% set vc = vendor_counts.get(v.id, {'low': 0, 'medium': 0, 'high': 0, 'critical': 0}) %}
+
+    <article class="vendor-card">
+      <div class="vendor-top">
+        <div>
+          <h3>{{ v.name }}</h3>
+          <div class="muted">
+            {{ v.domain or (v.name | lower ~ '.example.com') }}
+          </div>
+        </div>
+
+        <span class="consent {{ 'on' if v.consent else '' }}">
+          {{ 'Consent' if v.consent else 'No consent' }}
+        </span>
+      </div>
+
+      <div class="muted">
+        Findings:
+        L {{ vc.low }} •
+        M {{ vc.medium }} •
+        H {{ vc.high }} •
+        C {{ vc.critical }}
+      </div>
+
+      {% if r and r.p50 %}
+        {% set p50 = r.p50 %}
+
+        {% if p50 < 250000 %}
+          {% set cls = 'low' %}
+          {% set label = 'Low' %}
+        {% elif p50 < 500000 %}
+          {% set cls = 'medium' %}
+          {% set label = 'Medium' %}
+        {% elif p50 < 1000000 %}
+          {% set cls = 'high' %}
+          {% set label = 'High' %}
+        {% else %}
+          {% set cls = 'critical' %}
+          {% set label = 'Critical' %}
+        {% endif %}
+
+        <div class="risk">
+          <span class="pill {{ cls }}">{{ label }}</span>
+          <div class="p50">P50: ${{ '%.0f' | format(p50) }}</div>
+        </div>
+      {% else %}
+        <div class="muted">No FAIR yet</div>
+      {% endif %}
+
+      <div class="card-actions">
+        <a
+          class="btn secondary"
+          href="{{ url_for('main.vendor_detail', vendor_id=v.id) }}"
+        >
+          View
+        </a>
+
+        <form
+          method="POST"
+          action="{{ url_for('main.start_run', vendor_id=v.id) }}"
+        >
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn">Run</button>
+        </form>
+      </div>
+    </article>
+  {% else %}
+    <p>No vendors yet.</p>
+  {% endfor %}
+</section>
+
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'base.html' %}{% block content %}
+<section class="panel"><h2>All Runs</h2>
+<table>
+  <tr><th>Time (UTC)</th><th>Vendor</th><th>Status</th><th>P50</th><th>Link</th></tr>
+  {% for r in runs %}
+    <tr><td>{{ r.started_at.strftime('%Y-%m-%d %H:%M') }}</td><td>{{ r.vendor.name }}</td><td>{{ r.status }}</td><td>{{ '%.0f'|format(r.p50 or 0) }}</td><td><a href="{{ url_for('main.run_detail', run_id=r.id) }}">view</a></td></tr>
+  {% else %}
+    <tr><td colspan="5">No runs yet.</td></tr>
+  {% endfor %}
+</table>
+</section>
+{% endblock %}

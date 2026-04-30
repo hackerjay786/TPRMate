@@ -1,0 +1,16 @@
+<string>:7: SyntaxWarning: invalid escape sequence '\#'
+<string>:11: SyntaxWarning: invalid escape sequence '\#'
+[\#] nmap -F apple.com
+header,PORT,STATE,SERVICE
+discovery,service,80/{proto},{svc}
+discovery,service,443/{proto},{svc}
+discovery,service,22/{proto},{svc}
+discovery,service,25/{proto},{svc}
+discovery,service,3389/{proto},{svc}
+---
+[\#] nuclei -u https://apple.com
+finding,{sev},{desc},https://apple.com
+finding,{sev},{desc},https://apple.com
+finding,{sev},{desc},https://apple.com
+finding,{sev},{desc},https://apple.com
+==ACTIVE_DONE==
